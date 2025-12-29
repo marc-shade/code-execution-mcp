@@ -39,6 +39,43 @@ WORKSPACE_DIR.mkdir(parents=True, exist_ok=True)
 SKILLS_DIR.mkdir(parents=True, exist_ok=True)
 TOOLS_REGISTRY_DIR.mkdir(parents=True, exist_ok=True)
 
+# Dangerous imports that should be blocked in sandbox
+BLOCKED_IMPORTS = {
+    'os', 'subprocess', 'sys', 'socket', 'urllib', 'requests', 'http',
+    'ftplib', 'smtplib', 'telnetlib', 'ssl', 'ctypes', 'multiprocessing',
+    'threading', 'shelve', 'marshal', 'importlib', '__import__',
+    'builtins', '__builtins__', 'globals', 'locals', 'vars', 'dir',
+}
+
+# Maximum output size to prevent memory exhaustion
+MAX_OUTPUT_SIZE = 100_000  # 100KB
+
+def check_for_dangerous_code(code: str) -> list:
+    """Check code for dangerous patterns before execution."""
+    warnings = []
+
+    # Check for blocked imports
+    import_patterns = [
+        r'import\s+(\w+)',
+        r'from\s+(\w+)',
+        r'__import__\s*\(\s*["\'](\w+)',
+    ]
+
+    for pattern in import_patterns:
+        for match in re.finditer(pattern, code):
+            module = match.group(1)
+            if module in BLOCKED_IMPORTS:
+                warnings.append(f"Blocked import: {module}")
+
+    # Check for attribute access attacks
+    dangerous_attrs = ['__class__', '__bases__', '__subclasses__', '__mro__', '__globals__', '__code__']
+    for attr in dangerous_attrs:
+        if attr in code:
+            warnings.append(f"Dangerous attribute access: {attr}")
+
+    return warnings
+
+
 # PII patterns for tokenization
 PII_PATTERNS = {
     'email': r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b',
