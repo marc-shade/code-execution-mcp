@@ -10,6 +10,7 @@ Implements the patterns from Anthropic's "Code Execution with MCP" article:
 
 This reduces token usage by up to 98% compared to direct tool invocation.
 """
+import platform
 
 import json
 import os
@@ -30,51 +31,14 @@ from fastmcp import FastMCP
 mcp = FastMCP("code-execution")
 
 # Configuration
-WORKSPACE_DIR = Path(os.path.join(os.environ.get("AGENTIC_SYSTEM_PATH", "/mnt/agentic-system"), "mcp-servers/code-execution-mcp/workspace"))
-SKILLS_DIR = Path(os.path.join(os.environ.get("AGENTIC_SYSTEM_PATH", "/mnt/agentic-system"), "mcp-servers/code-execution-mcp/skills"))
-TOOLS_REGISTRY_DIR = Path(os.path.join(os.environ.get("AGENTIC_SYSTEM_PATH", "/mnt/agentic-system"), "mcp-servers/code-execution-mcp/tools_registry"))
+WORKSPACE_DIR = Path(os.path.join(os.environ.get("AGENTIC_SYSTEM_PATH", str(_STORAGE_BASE)), "mcp-servers/code-execution-mcp/workspace"))
+SKILLS_DIR = Path(os.path.join(os.environ.get("AGENTIC_SYSTEM_PATH", str(_STORAGE_BASE)), "mcp-servers/code-execution-mcp/skills"))
+TOOLS_REGISTRY_DIR = Path(os.path.join(os.environ.get("AGENTIC_SYSTEM_PATH", str(_STORAGE_BASE)), "mcp-servers/code-execution-mcp/tools_registry"))
 
 # Ensure directories exist
 WORKSPACE_DIR.mkdir(parents=True, exist_ok=True)
 SKILLS_DIR.mkdir(parents=True, exist_ok=True)
 TOOLS_REGISTRY_DIR.mkdir(parents=True, exist_ok=True)
-
-# Dangerous imports that should be blocked in sandbox
-BLOCKED_IMPORTS = {
-    'os', 'subprocess', 'sys', 'socket', 'urllib', 'requests', 'http',
-    'ftplib', 'smtplib', 'telnetlib', 'ssl', 'ctypes', 'multiprocessing',
-    'threading', 'shelve', 'marshal', 'importlib', '__import__',
-    'builtins', '__builtins__', 'globals', 'locals', 'vars', 'dir',
-}
-
-# Maximum output size to prevent memory exhaustion
-MAX_OUTPUT_SIZE = 100_000  # 100KB
-
-def check_for_dangerous_code(code: str) -> list:
-    """Check code for dangerous patterns before execution."""
-    warnings = []
-
-    # Check for blocked imports
-    import_patterns = [
-        r'import\s+(\w+)',
-        r'from\s+(\w+)',
-        r'__import__\s*\(\s*["\'](\w+)',
-    ]
-
-    for pattern in import_patterns:
-        for match in re.finditer(pattern, code):
-            module = match.group(1)
-            if module in BLOCKED_IMPORTS:
-                warnings.append(f"Blocked import: {module}")
-
-    # Check for attribute access attacks
-    dangerous_attrs = ['__class__', '__bases__', '__subclasses__', '__mro__', '__globals__', '__code__']
-    for attr in dangerous_attrs:
-        if attr in code:
-            warnings.append(f"Dangerous attribute access: {attr}")
-
-    return warnings
-
 
 # PII patterns for tokenization
 PII_PATTERNS = {
@@ -157,6 +121,29 @@ def create_safe_globals(workspace_path: Path, context_vars: dict = None):
     import statistics
     import collections
     from datetime import datetime, date, timedelta
+
+def _get_storage_base() -> Path:
+    """Detect storage base path based on platform."""
+    env_path = os.environ.get("AGENTIC_SYSTEM_PATH")
+    if env_path and Path(env_path).exists():
+        return Path(env_path)
+
+    system = platform.system()
+    if system == "Darwin":  # macOS
+        if Path(str(_STORAGE_BASE)).exists():
+            return Path(str(_STORAGE_BASE))
+        elif Path(str(_STORAGE_BASE)).exists():
+            return Path(str(_STORAGE_BASE))
+    elif system == "Linux":
+        if Path(str(_STORAGE_BASE)).exists():
+            return Path(str(_STORAGE_BASE))
+        elif Path(str(_STORAGE_BASE)).exists():
+            return Path(str(_STORAGE_BASE))
+    return Path(__file__).parent.parent
+
+
+_STORAGE_BASE = _get_storage_base()
+
 
     safe_globals = {
         '__builtins__': create_safe_builtins(),
